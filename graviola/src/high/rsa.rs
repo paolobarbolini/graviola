@@ -716,16 +716,39 @@ mod tests {
         );
     }
 
+    #[test]
+    fn rejects_primes_of_different_lengths() {
+        let key = pkix::RSAPrivateKey::from_bytes(include_bytes!("rsa/rsa2048.der")).unwrap();
+
+        let mut long_q = vec![1u8; 8];
+        long_q.extend_from_slice(key.prime2.as_ref());
+        assert_eq!(rsa2048_with("q", &long_q).err(), Some(Error::OutOfRange));
+
+        // also shorter, with a dQ still below it
+        assert_eq!(
+            rsa2048_with_parts(&[("q", &[0x7f; 120]), ("dq", &[1])]).err(),
+            Some(Error::OutOfRange)
+        );
+    }
+
     /// `rsa2048.der`, with one of its components replaced by `value`.
     fn rsa2048_with(component: &str, value: &[u8]) -> Result<SigningKey, Error> {
+        rsa2048_with_parts(&[(component, value)])
+    }
+
+    /// `rsa2048.der`, with each `(component, value)` replaced.
+    fn rsa2048_with_parts(parts: &[(&str, &[u8])]) -> Result<SigningKey, Error> {
         let mut key =
             pkix::RSAPrivateKey::from_bytes(include_bytes!("rsa/rsa2048.der")).unwrap();
-        let value = asn1::Integer::new(value);
-        match component {
-            "dp" => key.exponent1 = value,
-            "dq" => key.exponent2 = value,
-            "iqmp" => key.coefficient = value,
-            _ => unreachable!(),
+        for &(component, value) in parts {
+            let value = asn1::Integer::new(value);
+            match component {
+                "q" => key.prime2 = value,
+                "dp" => key.exponent1 = value,
+                "dq" => key.exponent2 = value,
+                "iqmp" => key.coefficient = value,
+                _ => unreachable!(),
+            }
         }
         let mut buffer = [0u8; SigningKey::MAX_PKCS1_BUFFER_LEN];
         let len = key.encode(&mut asn1::Encoder::new(&mut buffer)).unwrap();

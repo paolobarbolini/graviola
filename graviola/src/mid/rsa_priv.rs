@@ -38,9 +38,11 @@ impl RsaPrivateKey {
         e: u32,
     ) -> Result<Self, Error> {
         let p_len = p.len_bytes();
+        // `private_op` needs p and q to be the same length in words.
         if p.is_even()
             || q.is_even()
             || !(MIN_PRIVATE_MODULUS_BYTES..=MAX_PRIVATE_MODULUS_BYTES).contains(&p_len)
+            || p.len_bits().div_ceil(64) != q.len_bits().div_ceil(64)
             || dp.is_zero()
             || dq.is_zero()
             || iqmp.is_zero()
